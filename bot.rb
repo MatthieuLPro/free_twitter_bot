@@ -1,34 +1,129 @@
-require 'discordrb'
-require 'twitter'
+################# LIBRARIES #################
+# Configuration du twitter
+require 'bundler/setup'
+Bundler.require
+
+require 'capybara/dsl'
+################# ######### #################
+
+################# CONFIGURATION #################
+# Configuration du twitter
+LOGIN = 'Your login'
+PASSWORD = 'Your password'
+HAS_PINNED_TWEET = true # Si un pinned tweet est present
+WEBSITE_URL = 'https://twitter.com' # Ne pas changer cette valeur
 
 # Configuration du bot Discord
-bot_token = 'YOUR_BOT_TOKEN' # Remplacez YOUR_BOT_TOKEN par le token de votre bot Discord
-bot_client_id = 'YOUR_BOT_CLIENT_ID' # Remplacez YOUR_BOT_CLIENT_ID par l'ID de votre bot Discord
-server_id = 'YOUR_SERVER_ID' # Remplacez YOUR_SERVER_ID par l'ID de votre serveur Discord
-channel_id = 'YOUR_CHANNEL_ID' # Remplacez YOUR_CHANNEL_ID par l'ID du salon où vous souhaitez envoyer le message
+DISCORD_TOKEN = 'Your discord token' # Remplacez YOUR_BOT_TOKEN par le token de votre bot Discord
+DISCORD_CLIENT_ID = 'Your discord client id' # Remplacez YOUR_BOT_CLIENT_ID par l'ID de votre bot Discord
+CHANNEL_ID = 'Your discord channel id' # Remplacez YOUR_CHANNEL_ID par l'ID du salon où vous souhaitez envoyer le message
+CALL_WITH_MESSAGE = true # True pour utiliser le message
+################# ############# #################
 
-# Configuration de l'API Twitter
-twitter_consumer_key = 'YOUR_TWITTER_CONSUMER_KEY' # Remplacez YOUR_TWITTER_CONSUMER_KEY par la clé d'API de votre application Twitter
-twitter_consumer_secret = 'YOUR_TWITTER_CONSUMER_SECRET' # Remplacez YOUR_TWITTER_CONSUMER_SECRET par le secret d'API de votre application Twitter
-twitter_access_token = 'YOUR_TWITTER_ACCESS_TOKEN' # Remplacez YOUR_TWITTER_ACCESS_TOKEN par le jeton d'accès de votre compte Twitter
-twitter_access_token_secret = 'YOUR_TWITTER_ACCESS_TOKEN_SECRET' # Remplacez YOUR_TWITTER_ACCESS_TOKEN_SECRET par le secret du jeton d'accès de votre compte Twitter
-
-# Création du client Discord
-bot = Discordrb::Bot.new token: bot_token, client_id: bot_client_id
-
-# Création du client Twitter
-twitter_client = Twitter::REST::Client.new do |config|
-  config.consumer_key = twitter_consumer_key
-  config.consumer_secret = twitter_consumer_secret
-  config.access_token = twitter_access_token
-  config.access_token_secret = twitter_access_token_secret
+Capybara.register_driver :selenium do |app|
+  options = Selenium::WebDriver::Chrome::Options.new
+  # options.add_argument('--start-maximized') # DEBUG MODE - Ouvre Chrome en plein ecran
+  options.add_argument('--headless') # Execution en mode headless
+  options.add_argument('--disable-gpu') # Desactiver le rendu GPU (optionnel, parfois necessaire)
+  Capybara::Selenium::Driver.new(app, browser: :chrome, options: options)
 end
 
-# Événement de création d'un tweet
-bot.message(with_text: '!tweet') do |event|
-  latest_tweet = twitter_client.user_timeline('YOUR_TWITTER_USERNAME').first # Remplacez YOUR_TWITTER_USERNAME par votre nom d'utilisateur Twitter
-  event.channel.send_message("Nouveau tweet : #{latest_tweet.url}")
+# Capybara.default_driver = :selenium # DEBUG MODE - Ouvre Chrome en mode normal
+Capybara.default_driver = :selenium_headless # DEBUG MODE - Ouvre Chrome en mode headless
+Capybara.current_driver = :selenium_headless # DEBUG MODE - Ouvre Chrome en mode headless
+Capybara.app_host = WEBSITE_URL
+
+class TwitterFetcher
+  include Capybara::DSL
+
+  def initialize
+    visit('/')
+  end
+
+  def login(username, password)
+    sleep(2)
+
+    # Entrer le username
+    element = find('input[type="text"]')
+    element.click
+    element.set(username)
+
+    # Appuye sur le bouton suivant
+    button = all('span', text: 'Suivant')[0]
+    button.click
+
+    sleep(2)
+
+    # Entrer le password
+    # element = find('input[type="text"]')
+    fill_in('password', with: password)
+
+    # Appuye sur le bouton se connecter
+    button = all('span', text: 'Se connecter')[0]
+    button.click
+
+    sleep(2)
+  end
+
+  def get_url_from_last_tweet(has_pinned_tweet=false)
+    sleep(2)
+
+    # Gerer les cookies
+    element = all('span', text: 'Refuse non-essential cookies')[0]
+    element.click
+
+    sleep(2)
+
+    # Cliquer sur profile
+    element = all('span', text: 'Profile')[0]
+    element.click
+
+    sleep(2)
+
+    # Trouver le tweet
+    tweet_index = if (has_pinned_tweet)
+      1
+    else
+      0
+    end
+    element = all('div[data-testid="tweetText"]')[tweet_index]
+    element.click
+
+    sleep(2)
+
+    # Retourner l'url
+    Capybara.current_session.current_url
+  end
 end
 
-# Démarrage du bot Discord
-bot.run
+bot = Discordrb::Bot.new token: DISCORD_TOKEN, client_id: DISCORD_CLIENT_ID
+
+if CALL_WITH_MESSAGE
+  bot.message(with_text: '!tweet') do |event|
+    twitter_fetcher = TwitterFetcher.new
+    pp "Log in on twitter"
+    twitter_fetcher.login(LOGIN, PASSWORD)
+    pp "Log in succeeded"
+    tweet_url = twitter_fetcher.get_url_from_last_tweet(HAS_PINNED_TWEET)
+    pp "Url is fetched"
+    bot.send_message(CHANNEL_ID, tweet_url)
+    pp "Message is sent to discord"
+  end
+
+  bot.message(with_text: '!stop_bot') do |event|
+    bot.stop
+    pp "Stop bot"
+  end
+
+  bot.run
+else
+  # Recupere le dernier tweet et post le message sur discord
+  twitter_fetcher = TwitterFetcher.new
+  pp "Log in on twitter"
+  twitter_fetcher.login(LOGIN, PASSWORD)
+  pp "Log in succeeded"
+  tweet_url = twitter_fetcher.get_url_from_last_tweet(HAS_PINNED_TWEET)
+  pp "Url is fetched"
+  bot.send_message(CHANNEL_ID, tweet_url)
+  pp "Message is sent to discord"
+end
