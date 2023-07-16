@@ -29,8 +29,8 @@ Capybara.register_driver :selenium do |app|
 end
 
 # Capybara.default_driver = :selenium # DEBUG MODE - Ouvre Chrome en mode normal
-Capybara.default_driver = :selenium_headless # DEBUG MODE - Ouvre Chrome en mode headless
-Capybara.current_driver = :selenium_headless # DEBUG MODE - Ouvre Chrome en mode headless
+Capybara.default_driver = :selenium_headless # Ouvre Chrome en mode headless
+Capybara.current_driver = :selenium_headless # Ouvre Chrome en mode headless
 Capybara.app_host = WEBSITE_URL
 
 class TwitterFetcher

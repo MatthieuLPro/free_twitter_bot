@@ -29,7 +29,9 @@ Because it's difficult to find a good and free twitter bot. This bot can fetch l
 - Manually: In your terminal, ```bundle exec ruby bot.rb```
   - !tweet: To fetch the last tweet and to send to your discord channel
   - !stop_bot: To stop your bot
-- Automatically: Use crontab, or other stuff ...
+- Automatically: 
+  - Use crontab, or other stuff ...
+  - Check the permissions on the file bot.rb
 
 ## How to contribute
 
@@ -37,6 +39,7 @@ Feel free to help if you have an idea.
 
 ## TODO
 
+- Fix with crontab ?
 - Add languages EN
 
 ## Licence
